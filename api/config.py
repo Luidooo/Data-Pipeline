@@ -19,8 +19,6 @@ class Settings(BaseSettings):
     SYNC_SCHEDULE_HOUR: int
     SYNC_SCHEDULE_MINUTE: int
 
-    LOG_LEVEL: str
-
     @property
     def database_url(self) -> str:
         return (
