@@ -25,9 +25,15 @@ class Analisador:
         if 'situacao' not in df.columns:
             return pd.DataFrame()
 
-        return df['situacao'].value_counts().reset_index().rename(
-            columns={'index': 'situacao', 'situacao': 'total'}
-        )
+        result = df['situacao'].value_counts().reset_index()
+
+        # Handle different pandas versions
+        if 'count' in result.columns:
+            result = result.rename(columns={'count': 'total', 'index': 'situacao'})
+        else:
+            result = result.rename(columns={'situacao': 'total', 'index': 'situacao'})
+
+        return result
 
     @staticmethod
     def analise_temporal(df: pd.DataFrame) -> pd.DataFrame:
