@@ -35,6 +35,9 @@ O script irá:
 - Aguardar a inicialização completa da API
 - Exibir URLs de acesso aos serviços
 
+
+![Inicialização concluída](./utils/ini_concluida.png)
+
 ### Opção 2: Comandos Manuais
 
 Caso prefira executar manualmente:
