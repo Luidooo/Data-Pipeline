@@ -4,6 +4,8 @@ Pipeline ETL completo para extração, processamento, análise e visualização 
 
 ## Visão Geral
 
+![](./utils/geral.png)
+
 Sistema completo de análise de dados públicos com:
 - **Backend**: API REST com FastAPI + PostgreSQL
 - **ETL**: Pipeline automatizado de extração, transformação e carga
@@ -14,6 +16,9 @@ Sistema completo de análise de dados públicos com:
 > **Ambiente Testado**: Este projeto foi desenvolvido e testado em Linux. Caso tenha algum problema em Ambiente Windows, tente configurar wls (ou mudar pro linux rs)
 
 ## Inicialização Rápida
+
+
+![Fluxo de inicialização](./utils/fluxo_inicializacao.png)
 
 ### Opção 1: Script Automatizado (Recomendado)
 
@@ -38,12 +43,11 @@ Caso prefira executar manualmente:
 # 1. Criar arquivo .env
 cp .env.example .env
 
-# 2. Subir containers
+# 2. Subir containers e aguardar inicialização 
 docker compose up -d --build
 
-# 3. Aguardar inicialização (5 minutos na primeira vez)
-# Acompanhar logs:
-docker compose logs -f
+# 3. Acompanhar logs(opcional)
+#docker compose logs -f
 ```
 
 ## Serviços Disponíveis
@@ -85,7 +89,7 @@ Data-Pipeline/
 │   ├── jupyter_config.py
 │   ├── start.sh
 │   └── Dockerfile
-├── utils/ #randon things
+├── utils/ #random things
 ├── requirements.txt
 ├── .env.example
 ├── docker-compose.yml
@@ -103,6 +107,9 @@ Data-Pipeline/
 - Healthchecks 
 
 ### Pipeline ETL
+
+![Pipeline ETL](./utils/pipeline.png)
+
 - **Extract**: Paginação automática da API ObrasGov
 - **Transform**: Normalização, validação e deduplicação
 - **Load**: Relacionamentos FK + tratamento de duplicatas
@@ -234,33 +241,74 @@ curl "http://localhost:8000/projetos/21103.22-77"
 
 ## Estrutura do Banco de Dados
 
+![Diagrama ER](./utils/db.png)
+
 ### Modelo Relacional (3NF)
 
+O banco de dados utiliza relacionamentos **Many-to-Many (N:N)** através de tabelas intermediárias:
+
 ```
-projetos_investimento (principal)
-    ├── executor_id → executores(id)
-    ├── tomador_id → tomadores(id)
-    └── repassador_id → repassadores(id)
+projetos_investimento (tabela principal - 25 campos)
+    ├── projeto_executor → executores
+    ├── projeto_tomador → tomadores
+    ├── projeto_repassador → repassadores
+    ├── projeto_eixo → eixos
+    ├── projeto_tipo → tipos
+    ├── projeto_subtipo → subtipos
+    └── fontes_recurso (1:N)
+
+Hierarquia:
+    eixos → tipos → subtipos
 ```
 
 ### Tabelas
 
-1. **projetos_investimento**
-   - Dados principais dos projetos
-   - Campos: id, id_unico (UK), uf, situacao, data_cadastro, etc.
-   - FKs: executor_id, tomador_id, repassador_id
+#### Tabela Principal
+
+1. **projetos_investimento** (25 campos)
+   - Identificação: id (PK), id_unico (UK)
+   - Dados básicos: nome, cep, endereco, descricao, funcao_social, meta_global
+   - Datas: data_inicial_prevista, data_final_prevista, data_inicial_efetiva, data_final_efetiva, data_cadastro, data_situacao
+   - Classificação: especie, natureza, natureza_outras, situacao, uf
+   - Impacto: qdt_empregos_gerados, desc_populacao_beneficiada, populacao_beneficiada
+   - Outros: desc_plano_nacional_politica_vinculado, observacoes_pertinentes, is_modelada_por_bim
+   - Auditoria: created_at, updated_at
+
+#### Entidades Relacionadas
 
 2. **executores**
-   - Instituições executoras
-   - Campos: id, nome, codigo, created_at
+   - Campos: id (PK), nome, codigo (UK BigInteger)
 
 3. **tomadores**
-   - Tomadores de recursos
-   - Campos: id, nome, codigo, created_at
+   - Campos: id (PK), nome, codigo (UK BigInteger)
 
 4. **repassadores**
-   - Órgãos repassadores
-   - Campos: id, nome, codigo, created_at
+   - Campos: id (PK), nome, codigo (UK BigInteger)
+
+5. **eixos**
+   - Campos: id (PK), descricao
+
+6. **tipos**
+   - Campos: id (PK), descricao, eixo_id (FK)
+
+7. **subtipos**
+   - Campos: id (PK), descricao, tipo_id (FK)
+
+8. **fontes_recurso**
+   - Campos: id (PK), projeto_id (FK), origem, valor_investimento_previsto
+
+#### Tabelas Intermediárias (Many-to-Many)
+
+- **projeto_executor**: (projeto_id, executor_id) - PK composta
+- **projeto_tomador**: (projeto_id, tomador_id) - PK composta
+- **projeto_repassador**: (projeto_id, repassador_id) - PK composta
+- **projeto_eixo**: (projeto_id, eixo_id) - PK composta
+- **projeto_tipo**: (projeto_id, tipo_id) - PK composta
+- **projeto_subtipo**: (projeto_id, subtipo_id) - PK composta
+
+### Diagrama Completo
+
+Para visualizar o diagrama ER completo com todos os relacionamentos, consulte: `utils/arquitetura.md`
 
 ## Análise de Dados
 
@@ -344,7 +392,7 @@ docker compose restart streamlit       # Reiniciar serviço específico
 
 ## Implementações Destacadas
 
-### Cliente API Robusto
+### Cliente API 
 - Paginação transparente com async generator
 - Rate limiting inteligente (1s delay)
 - Retry automático com backoff exponencial
@@ -362,7 +410,7 @@ docker compose restart streamlit       # Reiniciar serviço específico
 - Cache inteligente (Streamlit)
 - Visualizações interativas
 
-### Infraestrutura Profissional
+### Infraestrutura 
 - Healthchecks garantem ordem correta
 - Volume persistente para dados
 - Rede isolada Docker
