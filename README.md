@@ -1,44 +1,90 @@
-# Data Pipeline - ObrasGov API
+# Data Pipeline - ObrasGov Distrito Federal
 
-API para extração, tratamento e armazenamento de dados de projetos de investimento público do Distrito Federal, consumidos da API do ObrasGov.br.
+Pipeline ETL completo para extração, processamento, análise e visualização de dados de projetos de investimento público do Distrito Federal, consumidos da API ObrasGov.br.
+
+## Visão Geral
+
+Sistema completo de análise de dados públicos com:
+- **Backend**: API REST com FastAPI + PostgreSQL
+- **ETL**: Pipeline automatizado de extração, transformação e carga
+- **Análise**: Classes especializadas para processamento de dados
+- **Visualização**: Dashboard Streamlit + Jupyter Notebook interativo
+- **Infraestrutura**: Docker Compose com healthchecks
 
 ## Arquitetura do Projeto
 
 ```
 Data-Pipeline/
 ├── api/
-│   ├── __init__.py
-│   ├── main.py              # Endpoints FastAPI
-│   ├── config.py            # Configurações e variáveis de ambiente
-│   ├── models.py            # Modelos SQLAlchemy (14 tabelas)
-│   ├── schemas.py           # Schemas Pydantic para validação
-│   ├── database.py          # Operações de banco de dados
+│   ├── main.py
+│   ├── config.py
+│   ├── models.py
+│   ├── schemas.py
+│   ├── database.py
 │   └── services/
-│       ├── __init__.py
-│       ├── obrasgov_client.py   # Cliente HTTP para API externa
-│       └── data_processor.py    # Processamento e normalização de dados
+│       ├── obrasgov_client.py
+│       └── data_processor.py
+├── analysis/
+│   ├── data_loader.py
+│   ├── normalizador.py
+│   ├── analisador.py
+│   ├── visualizador.py
+│   └── db_connector.py
+├── streamlit/
+│   ├── app.py
+│   └── Dockerfile
+├── notebooks/
+│   ├── analise_obrasgov_df.ipynb
+│   ├── jupyter_config.py
+│   ├── start.sh
+│   └── Dockerfile
+├── utils/ #randon things
 ├── requirements.txt
 ├── .env.example
 ├── docker-compose.yml
-├── DECISOES_ARQUITETURA_BD.md
 └── README.md
 ```
 
 ## Características
 
--  Estrutura de banco de dados **100% normalizada** (14 tabelas relacionadas)
--  Consumo assíncrono da API com retry e backoff exponencial
--  Tratamento robusto de erros e timeout
--  Sincronização automática agendada (scheduler)
--  Separação de responsabilidades (services pattern)
--  PostgreSQL com JSONB para análises avançadas
--  Documentação interativa (Swagger UI)
+### Backend
+- API REST com FastAPI e documentação automática (Swagger)
+- Banco de dados PostgreSQL normalizado (3NF)
+- Sincronização automática agendada (APScheduler - diária às 8h)
+- Cliente HTTP assíncrono com retry e backoff exponencial
+- Rate limiting (1s entre requisições)
+- Healthchecks 
+
+### Pipeline ETL
+- **Extract**: Paginação automática da API ObrasGov
+- **Transform**: Normalização, validação e deduplicação
+- **Load**: Relacionamentos FK + tratamento de duplicatas
+
+### Análise de Dados
+- Classes reutilizáveis(para usar no stramlit e no jupyter notebook)
+  - DataLoader
+  - Normalizador
+  - Analisador
+  - Visualizador
+- Diagnóstico de qualidade de dados
+- Análises estatísticas completas
+- Gráficos interativos (Plotly) e estáticos (Matplotlib/Seaborn)
+
+### Visualização
+- Dashboard Streamlit com 5 seções (Dados, Executores, Repassadores, Temporal)
+- Jupyter Notebook com todas as análises executáveis
+
+### Infraestrutura
+- Docker Compose com 4 containers isolados
+- Healthchecks garantem inicialização correta
+- Volume persistente para dados
+- Rede isolada para comunicação entre containers
 
 ## Pré-requisitos
 
-- Python 3.11+
 - Docker e Docker Compose
-- PostgreSQL 15 (via Docker)
+- Python 3.11+ (somente para desenvolvimento local)
+- Portas disponíveis: 5455, 8000, 8501, 8888
 
 ## Instalação
 
@@ -55,69 +101,104 @@ cd Data-Pipeline
 cp .env.example .env
 ```
 
-Edite o `.env` conforme necessário.
-
-### 3. Subir os containers (PostgreSQL + API)
+Configure as variáveis conforme necessário. Principais configurações:
 
 ```bash
-docker compose up -d --build
+POSTGRES_USER=obrasgov_user
+POSTGRES_PASSWORD=obrasgov_pass #senha sugerida, apenas para uso didatico, em producão usaremos gerenciador de senha
+POSTGRES_DB=obrasgov_db
+POSTGRES_PORT=5455
+
+OBRASGOV_API_BASE_URL=https://api.obrasgov.gestao.gov.br/obrasgov/api
+OBRASGOV_API_TIMEOUT=60
+OBRASGOV_DELAY_BETWEEN_REQUESTS=1
+
+SYNC_SCHEDULE_HOUR=11 #11h utc = 8h da manhã em bsb
+SYNC_SCHEDULE_MINUTE=0
+```
+
+### 3. Subir os containers
+
+```bash
+docker-compose up -d --build
 ```
 
 Isso irá:
-- Criar o container PostgreSQL na porta 5432
-- Criar o container da API na porta 8000
-- Aguardar o PostgreSQL estar saudável antes de iniciar a API
-- Criar automaticamente todas as 14 tabelas do banco
+1. Criar container PostgreSQL (porta 5455) com healthcheck
+2. Criar container API FastAPI (porta 8000) com sync inicial
+3. Criar container Streamlit (porta 8501) - aguarda API estar pronta
+4. Criar container JupyterLab (porta 8888) - aguarda API estar pronta
+
+**Tempo estimado**: 5 minutos 
+> Pode demorar alguns minutos pois a primeira inicialização faz requisições a api do ObrasGov, com alguns segundos entre as requisições para evitar tomarmos rate limit, e ambas as visualixacos( streamlit e jupyter notebook) somente são iniciliazados apos o banco já estar polpulado(processo de sync)
+<claude: melhore essa frase acima>
+
+## Serviços Disponíveis
+
+Após a inicialização completa:
+
+| Serviço | URL | Descrição |
+|---------|-----|-----------|
+| **FastAPI** | http://localhost:8000 | API REST |
+| **FastAPI Docs** | http://localhost:8000/docs | Swagger UI |
+| **Streamlit** | http://localhost:8501 | Dashboard interativo |
+| **JupyterLab** | http://localhost:8888 | Notebook (tema dark) |
+| **PostgreSQL** | localhost:5455 | Banco de dados |
 
 ## Uso
 
-### Verificar status dos containers
+### Dashboard Streamlit
 
+Acesse http://localhost:8501
+
+Seções disponíveis:
+- **Visão Geral**: Métricas, qualidade dos dados, distribuição por situação
+- **Executores**: Top N executores, ranking, busca
+- **Repassadores**: Análise por valor, top 5, busca
+- **Análise Temporal**: Evolução anual, distribuição mensal
+
+### Jupyter Notebook
+
+Acesse http://localhost:8888
+
+O notebook `analise_obrasgov_df.ipynb` já estará disponível com:
+- Todas as análises do Streamlit
+- Gráficos interativos Plotly
+- Código executável célula por célula
+- Documentação da arquitetura
+- (Tema dark por padrão rs)
+
+> Caso o script para executar todas as células falhe,use: `Run → Run All Cells`
+
+### API REST
+
+#### Health Check
 ```bash
-docker ps
+curl http://localhost:8000/health
 ```
 
-Você deve ver:
-- `obrasgov_postgres` - running (healthy)
-- `obrasgov_api` - running
-
-A API estará disponível em: `http://localhost:8000`
-
-Documentação interativa: `http://localhost:8000/docs`
-
-### Desenvolvimento local (sem Docker)
-
-Se preferir rodar localmente sem Docker:
-
-```bash
-# Instalar dependências
-pip install -r requirements.txt
-
-# Iniciar apenas PostgreSQL via Docker
-docker compose up -d postgres
-
-# Rodar API localmente
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+Resposta:
+```json
+{
+  "status": "ok",
+  "database": "connected",
+  "timestamp": "2025-10-20T12:00:00"
+}
 ```
 
-### Endpoints Disponíveis
-
-#### 1. Health Check
+#### Readiness Check
 ```bash
-GET /health
+curl http://localhost:8000/ready
 ```
 
-Verifica status da API e conexão com banco de dados.
+Retorna 200 quando banco está populado, 503 caso contrário.
 
-#### 2. Sincronizar Projetos
+#### Sincronizar Projetos (Manual)
 ```bash
-POST /sync?uf=DF
+curl -X POST "http://localhost:8000/sync?uf=DF"
 ```
 
-**Parâmetros:**
-- `uf` (opcional): Estado a ser sincronizado (padrão: DF)
-
-**Resposta:**
+Resposta:
 ```json
 {
   "message": "Sincronização concluída com sucesso para DF",
@@ -129,273 +210,185 @@ POST /sync?uf=DF
 }
 ```
 
-**Observações:**
-- A API implementa deduplicação automática de relacionamentos
-- Executores, tomadores e repassadores duplicados no mesmo projeto são ignorados
-- O campo `isModeladaPorBim` aceita valores nulos da API externa
-- Códigos de executores/tomadores/repassadores suportam BigInteger (valores > 2 bilhões)
-
-#### 3. Listar Projetos
+#### Listar Projetos
 ```bash
-GET /projetos?skip=0&limit=100&uf=DF
+curl "http://localhost:8000/projetos?skip=0&limit=10&uf=DF"
 ```
 
-**Parâmetros:**
-- `skip` (opcional): Número de registros a pular (paginação)
-- `limit` (opcional): Quantidade de registros (padrão: 100)
-- `uf` (opcional): Filtrar por UF
+Parâmetros:
+- `skip`: Paginação (default: 0)
+- `limit`: Registros por página (default: 100)
+- `uf`: Filtro por estado (opcional)
 
-#### 4. Buscar Projeto Específico
+#### Buscar Projeto Específico
 ```bash
-GET /projetos/{id_unico}
+curl "http://localhost:8000/projetos/21103.22-77"
 ```
 
-**Exemplo:**
-```bash
-GET /projetos/21103.22-77
+## Estrutura do Banco de Dados
+
+### Modelo Relacional (3NF)
+
+```
+projetos_investimento (principal)
+    ├── executor_id → executores(id)
+    ├── tomador_id → tomadores(id)
+    └── repassador_id → repassadores(id)
+```
+
+### Tabelas
+
+1. **projetos_investimento**
+   - Dados principais dos projetos
+   - Campos: id, id_unico (UK), uf, situacao, data_cadastro, etc.
+   - FKs: executor_id, tomador_id, repassador_id
+
+2. **executores**
+   - Instituições executoras
+   - Campos: id, nome, codigo, created_at
+
+3. **tomadores**
+   - Tomadores de recursos
+   - Campos: id, nome, codigo, created_at
+
+4. **repassadores**
+   - Órgãos repassadores
+   - Campos: id, nome, codigo, created_at
+
+## Análise de Dados
+
+### Classes Disponíveis
+
+#### DataLoader
+Carrega dados do PostgreSQL com queries otimizadas:
+```python
+from analysis import DataLoader
+
+loader = DataLoader()
+df = loader.load_projetos()
+df_executores = loader.load_top_executores(n=10)
+df_repassadores = loader.load_valores_por_repassador()
+df_temporal = loader.load_projetos_por_ano()
+```
+
+#### Normalizador
+Limpa e normaliza dados:
+```python
+from analysis import Normalizador
+
+df_limpo = Normalizador.normalizar_completo(df)
+diagnostico = Normalizador.diagnosticar_problemas(df)
+```
+
+#### Analisador
+Gera estatísticas e métricas:
+```python
+from analysis import Analisador
+
+analise = Analisador.analise_completa(df)
+situacao_df = Analisador.analise_situacao(df)
+```
+
+#### Visualizador
+Cria gráficos interativos:
+```python
+from analysis import Visualizador
+
+fig = Visualizador.plot_top_executores(df_executores, n=10, tipo='plotly')
+fig.show()
 ```
 
 ## Sincronização Automática
 
-A API está configurada para sincronizar automaticamente os dados:
+A API executa sync automático:
+- **Horário**: 8h da manhã de Brasilia
+- **Frequência**: Diária
+- **Configurável**: Variáveis `SYNC_SCHEDULE_HOUR` e `SYNC_SCHEDULE_MINUTE` no `.env`
 
-- **Horário:** 2h da manhã (UTC)
-- **Frequência:** Diária
-- **Configurável:** Edite `SYNC_SCHEDULE_HOUR` e `SYNC_SCHEDULE_MINUTE` no `.env`
+O sync também é executado automaticamente no startup da API.
 
-## Estrutura do Banco de Dados
+## Arquitetura e Fluxo de Dados
 
-### Tabelas Principais
+### Fluxo de Inicialização
 
-1. **projetos_investimento** - Dados principais dos projetos (34 colunas)
-2. **executores** - Instituições que executam obras
-3. **tomadores** - Instituições que tomam recursos
-4. **repassadores** - Órgãos que repassam recursos
-5. **eixos** - Eixos de classificação
-6. **tipos** - Tipos de projeto
-7. **subtipos** - Subtipos de projeto
-8. **fontes_recurso** - Fontes e valores de investimento
-9-14. **Tabelas de relacionamento** (Many-to-Many)
-
-Para detalhes completos sobre as decisões de arquitetura, consulte: [`DECISOES_ARQUITETURA_BD.md`](./DECISOES_ARQUITETURA_BD.md)
-
-## Análise de Dados
-
-### Exemplos de Queries SQL
-
-#### TOP 10 Executores
-```sql
-SELECT e.nome, COUNT(*) as total_projetos
-FROM executores e
-JOIN projeto_executor pe ON e.id = pe.executor_id
-GROUP BY e.nome
-ORDER BY total_projetos DESC
-LIMIT 10;
+```
+1. docker-compose up
+2. Postgres inicia → healthcheck (pg_isready)
+3. API inicia → cosome api gov e faz o sync inicial de dados → banco polpulado → healthcheck (/ready)
+4. Streamlit inicia (depende de API healthy)
+5. Jupyter inicia (depende de API healthy)
 ```
 
-#### Valor Total por Repassador
-```sql
-SELECT r.nome, SUM(fr.valor_investimento_previsto) as total
-FROM repassadores r
-JOIN projeto_repassador pr ON r.id = pr.repassador_id
-JOIN fontes_recurso fr ON pr.projeto_id = fr.projeto_id
-GROUP BY r.nome;
-```
 
-#### Distribuição por Tipo
-```sql
-SELECT t.descricao, COUNT(*) as total
-FROM tipos t
-JOIN projeto_tipo pt ON t.id = pt.tipo_id
-GROUP BY t.descricao;
-```
-
-### Integração com Pandas
-
-```python
-import pandas as pd
-from sqlalchemy import create_engine
-
-engine = create_engine("postgresql://obrasgov_user:obrasgov_pass@localhost:5432/obrasgov_db")
-
-# Carregar dados
-df = pd.read_sql("SELECT * FROM projetos_investimento", engine)
-
-# Converter campos numéricos
-df['empregos'] = pd.to_numeric(df['qdt_empregos_gerados'], errors='coerce')
-df['populacao'] = pd.to_numeric(df['populacao_beneficiada'], errors='coerce')
-
-# Análises
-print(df.groupby('uf')['empregos'].sum())
-```
-
-## Troubleshooting
-
-### Erro: "database does not exist"
-```bash
-docker compose down -v
-docker compose up -d --build
-```
-
-### Erro: "port 5432 already in use"
-Verifique containers PostgreSQL em execução:
-```bash
-docker ps -a | grep postgres
-```
-
-Pare o container conflitante:
-```bash
-docker stop <container_name>
-docker rm <container_name>
-```
-
-Ou edite `POSTGRES_PORT` no `.env` e no `docker-compose.yml`
-
-### Erro de timeout na API
-Aumente `OBRASGOV_API_TIMEOUT` no `.env` e rebuilde o container:
-```bash
-docker compose up -d --build api
-```
-
-### Resetar banco de dados
-```bash
-docker compose down -v
-docker compose up -d --build
-```
-
-### Ver logs da API
-```bash
-docker logs obrasgov_api -f
-```
-
-### Ver logs do PostgreSQL
-```bash
-docker logs obrasgov_postgres -f
-```
-
-### Acessar banco de dados
-```bash
-docker exec -it obrasgov_postgres psql -U obrasgov_user -d obrasgov_db
-```
-
-## Variáveis de Ambiente
-
-Consulte `.env.example` para ver todas as configurações disponíveis:
-
-- **Banco de Dados:** POSTGRES_*
-- **API Externa:** OBRASGOV_API_*
-- **Agendamento:** SYNC_SCHEDULE_*
-
-## Comandos Docker Úteis
+## Comandos Úteis
 
 ### Gerenciamento de Containers
 
 ```bash
-# Iniciar containers
-docker compose up -d
-
-# Parar containers (mantém dados)
-docker compose stop
-
-# Parar e remover containers (mantém dados)
-docker compose down
-
-# Parar, remover containers E volumes (apaga dados)
-docker compose down -v
-
-# Rebuildar e iniciar
-docker compose up -d --build
-
-# Rebuildar apenas API
-docker compose up -d --build api
-
-# Ver status
-docker compose ps
-docker ps
+docker-compose up -d                    # Iniciar todos
+docker-compose up -d --build           # Rebuild e iniciar
+docker-compose down                     # Parar (mantém dados)
+docker-compose down -v                  # Parar e apagar volumes
+docker-compose ps                       # Status dos containers
+docker-compose logs -f                  # Logs em tempo real
+docker-compose logs -f api             # Logs apenas da API
+docker-compose restart streamlit       # Reiniciar serviço específico
 ```
 
-### Monitoramento
+## Implementações Destacadas
 
-```bash
-# Logs em tempo real
-docker compose logs -f
+### Cliente API Robusto
+- Paginação transparente com async generator
+- Rate limiting inteligente (1s delay)
+- Retry automático com backoff exponencial
+- Timeout configurável
 
-# Logs apenas da API
-docker logs obrasgov_api -f
+### Pipeline ETL Completo
+- Extração assíncrona eficiente
+- Normalização e validação de dados
+- Deduplicação automática
+- Tratamento de erros robusto
 
-# Logs apenas do PostgreSQL
-docker logs obrasgov_postgres -f
+### Análise Modular
+- Classes reutilizáveis
+- Separação de responsabilidades
+- Cache inteligente (Streamlit)
+- Visualizações interativas
 
-# Estatísticas de uso
-docker stats
-```
-
-### Comandos SQL
-
-```bash
-# Acessar psql
-docker exec -it obrasgov_postgres psql -U obrasgov_user -d obrasgov_db
-
-# Executar query direto
-docker exec obrasgov_postgres psql -U obrasgov_user -d obrasgov_db -c "SELECT COUNT(*) FROM projetos_investimento;"
-
-# Listar tabelas
-docker exec obrasgov_postgres psql -U obrasgov_user -d obrasgov_db -c "\dt"
-```
-
-## Desenvolvimento
-
-### Estrutura de Services
-
-O projeto segue o padrão de separação de responsabilidades:
-
-- **`ObrasGovClient`**: Responsável apenas por consumir a API externa
-- **`DataProcessor`**: Responsável por transformar e salvar dados
-- **`main.py`**: Apenas orquestra os services e expõe endpoints
-
-### Adicionar Novos Endpoints
-
-1. Defina o schema de resposta em `schemas.py`
-2. Adicione o endpoint em `main.py`
-3. Se necessário, crie lógica no `services/`
+### Infraestrutura Profissional
+- Healthchecks garantem ordem correta
+- Volume persistente para dados
+- Rede isolada Docker
+- Configuração via .env
 
 ## Testes Realizados
 
- API rodando em containers Docker
- Health check funcionando
- Sincronização de 100+ projetos do DF
- Endpoints de listagem e busca funcionando
- Banco de dados com 14 tabelas normalizadas
- Relacionamentos Many-to-Many funcionando
- Deduplicação automática implementada
- Documentação Swagger disponível
-
-## Próximos Passos
-
-- [ ] Sincronizar todos os projetos do DF (todas as páginas)
-- [ ] Criar Jupyter Notebook para análise exploratória
-- [ ] Implementar visualizações com Matplotlib/Seaborn
-- [ ] Gerar relatório final com insights
-- [ ] Implementar filtros avançados nos endpoints
+- Sistema completo rodando em 4 containers Docker
+- Healthchecks funcionando corretamente
+- Sincronização de 100+ projetos do DF
+- Todos os endpoints REST funcionando
+- Dashboard Streamlit com 5 seções
+- Jupyter Notebook com todas as análises
+- Gráficos Plotly interativos
+- Banco normalizado 3NF com relacionamentos
+- Deduplicação automática implementada
+- Documentação completa da arquitetura
 
 ## Correções e Melhorias Implementadas
 
 Durante o desenvolvimento, as seguintes correções foram necessárias:
 
-1. **BigInteger para códigos**: Códigos de executores/tomadores/repassadores podem ter mais de 10 dígitos (ex: 394676000107), por isso foram alterados de `Integer` para `BigInteger`
+1. **BigInteger para códigos**: Códigos de executores/tomadores/repassadores podem ter mais de 10 dígitos, então foram alterados de `Integer` para `BigInteger`
 
-2. **Campo BIM opcional**: O campo `isModeladaPorBim` pode vir como `null` da API externa, então foi alterado de `bool` para `Optional[bool]`
+2. **Campo BIM opcional**: O campo `isModeladaPorBim` pode vir como `null` da API externa, alterado de `bool` para `Optional[bool]`
 
-3. **Deduplicação de relacionamentos**: A API externa pode retornar eixos/tipos/subtipos duplicados para o mesmo projeto, então implementamos deduplicação usando dicionários antes de inserir no banco
+3. **Deduplicação de relacionamentos**: API externa pode retornar duplicados, implementada deduplicação antes de inserir no banco
 
 4. **SQLAlchemy text()**: A partir do SQLAlchemy 2.0, queries SQL literais precisam usar `text()` wrapper
 
 5. **sync_time como string**: O campo `sync_time` retorna um `timedelta`, convertido para string na resposta da API
 
-## Licença
+6. **Healthcheck /ready**: Implementado endpoint que verifica se banco está populado antes de liberar Streamlit e Jupyter
 
-MIT
+7. **Sync condicional**: Adicionado para evitar re-sync desnecessário quando banco já possui dados
 
-## Contato
-
-Dúvidas: @davi_aguiar_vieira ou @mateus_castro3 (Telegram)
