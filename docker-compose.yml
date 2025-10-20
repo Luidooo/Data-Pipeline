@@ -1,0 +1,62 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: obrasgov_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-obrasgov_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-obrasgov_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-obrasgov_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-obrasgov_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - obrasgov_network
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: obrasgov_api
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - obrasgov_network
+    restart: unless-stopped
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: streamlit/Dockerfile
+    container_name: obrasgov_streamlit
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+    ports:
+      - "8501:8501"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - obrasgov_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  obrasgov_network:
+    driver: bridge
