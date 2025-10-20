@@ -11,6 +11,53 @@ Sistema completo de análise de dados públicos com:
 - **Visualização**: Dashboard Streamlit + Jupyter Notebook interativo
 - **Infraestrutura**: Docker Compose com healthchecks
 
+> **Ambiente Testado**: Este projeto foi desenvolvido e testado em Linux. Caso tenha algum problema em Ambiente Windows, tente configurar wls (ou mudar pro linux rs)
+
+## Inicialização Rápida
+
+### Opção 1: Script Automatizado (Recomendado)
+
+```bash
+./utils/start.sh
+```
+
+O script irá:
+- Verificar dependências (Docker, Docker Compose)
+- Criar arquivo `.env` automaticamente se não existir
+- Verificar disponibilidade das portas necessárias
+- Parar containers antigos (se houver)
+- Iniciar todos os containers com rebuild
+- Aguardar a inicialização completa da API
+- Exibir URLs de acesso aos serviços
+
+### Opção 2: Comandos Manuais
+
+Caso prefira executar manualmente:
+
+```bash
+# 1. Criar arquivo .env
+cp .env.example .env
+
+# 2. Subir containers
+docker compose up -d --build
+
+# 3. Aguardar inicialização (5 minutos na primeira vez)
+# Acompanhar logs:
+docker compose logs -f
+```
+
+## Serviços Disponíveis
+
+Após a inicialização completa:
+
+| Serviço | URL | Descrição |
+|---------|-----|-----------|
+| **FastAPI** | http://localhost:8000 | API REST |
+| **FastAPI Docs** | http://localhost:8000/docs | Swagger UI |
+| **Streamlit** | http://localhost:8501 | Dashboard interativo |
+| **JupyterLab** | http://localhost:8888 | Notebook (tema dark) |
+| **PostgreSQL** | localhost:5455 | Banco de dados |
+
 ## Arquitetura do Projeto
 
 ```
@@ -82,30 +129,18 @@ Data-Pipeline/
 
 ## Pré-requisitos
 
-- Docker e Docker Compose
+- Docker e Docker Compose v2
 - Python 3.11+ (somente para desenvolvimento local)
 - Portas disponíveis: 5455, 8000, 8501, 8888
+- Sistema operacional: Linux (testado)
 
-## Instalação
+## Configuração do .env
 
-### 1. Clonar o repositório
-
-```bash
-git clone <repo-url>
-cd Data-Pipeline
-```
-
-### 2. Criar arquivo .env
-
-```bash
-cp .env.example .env
-```
-
-Configure as variáveis conforme necessário. Principais configurações:
+O script `start.sh` cria automaticamente o arquivo `.env` a partir do `.env.example`. Caso queira configurar manualmente:
 
 ```bash
 POSTGRES_USER=obrasgov_user
-POSTGRES_PASSWORD=obrasgov_pass #senha sugerida, apenas para uso didatico, em producão usaremos gerenciador de senha
+POSTGRES_PASSWORD=obrasgov_pass
 POSTGRES_DB=obrasgov_db
 POSTGRES_PORT=5455
 
@@ -116,34 +151,6 @@ OBRASGOV_DELAY_BETWEEN_REQUESTS=1
 SYNC_SCHEDULE_HOUR=11 #11h utc = 8h da manhã em bsb
 SYNC_SCHEDULE_MINUTE=0
 ```
-
-### 3. Subir os containers
-
-```bash
-docker-compose up -d --build
-```
-
-Isso irá:
-1. Criar container PostgreSQL (porta 5455) com healthcheck
-2. Criar container API FastAPI (porta 8000) com sync inicial
-3. Criar container Streamlit (porta 8501) - aguarda API estar pronta
-4. Criar container JupyterLab (porta 8888) - aguarda API estar pronta
-
-**Tempo estimado**: 5 minutos 
-> Pode demorar alguns minutos pois a primeira inicialização faz requisições a api do ObrasGov, com alguns segundos entre as requisições para evitar tomarmos rate limit, e ambas as visualixacos( streamlit e jupyter notebook) somente são iniciliazados apos o banco já estar polpulado(processo de sync)
-<claude: melhore essa frase acima>
-
-## Serviços Disponíveis
-
-Após a inicialização completa:
-
-| Serviço | URL | Descrição |
-|---------|-----|-----------|
-| **FastAPI** | http://localhost:8000 | API REST |
-| **FastAPI Docs** | http://localhost:8000/docs | Swagger UI |
-| **Streamlit** | http://localhost:8501 | Dashboard interativo |
-| **JupyterLab** | http://localhost:8888 | Notebook (tema dark) |
-| **PostgreSQL** | localhost:5455 | Banco de dados |
 
 ## Uso
 
@@ -325,14 +332,14 @@ O sync também é executado automaticamente no startup da API.
 ### Gerenciamento de Containers
 
 ```bash
-docker-compose up -d                    # Iniciar todos
-docker-compose up -d --build           # Rebuild e iniciar
-docker-compose down                     # Parar (mantém dados)
-docker-compose down -v                  # Parar e apagar volumes
-docker-compose ps                       # Status dos containers
-docker-compose logs -f                  # Logs em tempo real
-docker-compose logs -f api             # Logs apenas da API
-docker-compose restart streamlit       # Reiniciar serviço específico
+docker compose up -d                    # Iniciar todos
+docker compose up -d --build           # Rebuild e iniciar
+docker compose down                     # Parar (mantém dados)
+docker compose down -v                  # Parar e apagar volumes
+docker compose ps                       # Status dos containers
+docker compose logs -f                  # Logs em tempo real
+docker compose logs -f api             # Logs apenas da API
+docker compose restart streamlit       # Reiniciar serviço específico
 ```
 
 ## Implementações Destacadas
