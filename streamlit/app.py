@@ -322,6 +322,10 @@ tab1, tab2, tab3, tab4 = st.tabs(["Visão Geral", "Pipeline ETL", "Banco de Dado
 with tab1:
     st.subheader("Arquitetura de Containers")
 
+    st.image("utils/fluxo_inicializacao.png", caption="Fluxo de Inicialização do Sistema", use_column_width=True)
+
+    st.markdown("---")
+
     st.markdown("""
     O sistema é composto por 4 containers Docker orquestrados via Docker Compose:
     """)
@@ -380,6 +384,10 @@ with tab1:
 with tab2:
     st.subheader("Pipeline ETL")
 
+    st.image("utils/pipeline.png", caption="Arquitetura do Pipeline ETL", use_column_width=True)
+
+    st.markdown("---")
+
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -396,20 +404,20 @@ with tab2:
         st.markdown("""
         **TRANSFORM**
         - DataProcessor
-        - Normalizador
-        - Extração de entidades
-        - Validação de dados
-        - Deduplicação
+        - Parse de datas
+        - Get or Create entidades
+        - Deduplicação por código/id
+        - Pydantic validation
         """)
 
     with col3:
         st.markdown("""
         **LOAD**
         - SQLAlchemy ORM
-        - Relacionamentos FK
-        - Commit por página
-        - Rollback em erro
-        - Tratamento de duplicatas
+        - Check duplicata por id_unico
+        - INSERT ou UPDATE
+        - Clear + Append N:N
+        - Flush + Commit por página
         """)
 
     st.markdown("---")
@@ -433,52 +441,100 @@ class DataProcessor:
 with tab3:
     st.subheader("Estrutura do Banco de Dados")
 
-    st.markdown("""
-    **Tabela Principal: projetos_investimento**
-    """)
-
-    df_schema = pd.DataFrame({
-        'Campo': ['id', 'id_unico', 'uf', 'situacao', 'data_cadastro', 'executor_id', 'tomador_id', 'repassador_id'],
-        'Tipo': ['INTEGER', 'STRING', 'STRING', 'STRING', 'DATETIME', 'INTEGER', 'INTEGER', 'INTEGER'],
-        'Constraint': ['PK', 'UNIQUE', '', '', '', 'FK → executores', 'FK → tomadores', 'FK → repassadores']
-    })
-
-    st.dataframe(df_schema, use_container_width=True, hide_index=True)
+    st.image("utils/db.png", caption="Diagrama ER - Modelo Relacional Completo", use_column_width=True)
 
     st.markdown("---")
+
+    st.markdown("""
+    **Modelo Relacional (3NF)**
+
+    O banco utiliza relacionamentos **Many-to-Many (N:N)** através de tabelas intermediárias.
+    """)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("""
+        **Tabelas de Dados (8):**
+        - projetos_investimento (25 campos)
+        - executores
+        - tomadores
+        - repassadores
+        - eixos
+        - tipos
+        - subtipos
+        - fontes_recurso (1:N com projetos)
+        """)
+
+    with col2:
+        st.markdown("""
+        **Tabelas Intermediárias N:N (6):**
+        - projeto_executor
+        - projeto_tomador
+        - projeto_repassador
+        - projeto_eixo
+        - projeto_tipo
+        - projeto_subtipo
+        """)
+
+    st.markdown("---")
+
+    st.markdown("""
+    **Campos da tabela projetos_investimento (25 campos):**
+    """)
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.markdown("""
-        **Tabela: executores**
+        **Identificação:**
         - id (PK)
+        - id_unico (UK)
+
+        **Dados Básicos:**
         - nome
-        - codigo
-        - created_at
+        - cep
+        - endereco
+        - descricao
+        - funcao_social
+        - meta_global
         """)
 
     with col2:
         st.markdown("""
-        **Tabela: tomadores**
-        - id (PK)
-        - nome
-        - codigo
-        - created_at
+        **Datas:**
+        - data_inicial_prevista
+        - data_final_prevista
+        - data_inicial_efetiva
+        - data_final_efetiva
+        - data_cadastro
+        - data_situacao
+
+        **Classificação:**
+        - especie
+        - natureza
+        - situacao
+        - uf
         """)
 
     with col3:
         st.markdown("""
-        **Tabela: repassadores**
-        - id (PK)
-        - nome
-        - codigo
+        **Impacto Social:**
+        - qdt_empregos_gerados
+        - desc_populacao_beneficiada
+        - populacao_beneficiada
+
+        **Outros:**
+        - desc_plano_nacional_politica_vinculado
+        - observacoes_pertinentes
+        - is_modelada_por_bim
         - created_at
+        - updated_at
         """)
 
     st.success("""
-    **Normalização:** Banco de dados normalizado (3NF) com relacionamentos
-    entre projetos e suas entidades associadas.
+    **Normalização:** Banco de dados normalizado (3NF) com 14 tabelas totais,
+    incluindo relacionamentos N:N e hierarquia eixos → tipos → subtipos.
     """)
 
 with tab4:

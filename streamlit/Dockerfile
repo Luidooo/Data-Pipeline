@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY analysis/ /app/analysis/
 COPY api/ /app/api/
 COPY streamlit/ /app/
+COPY utils/*.png /app/utils/
 
 EXPOSE 8501
 
