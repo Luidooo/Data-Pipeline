@@ -16,13 +16,10 @@ COPY analysis/ /app/analysis/
 COPY api/ /app/api/
 COPY notebooks/ /app/notebooks/
 
-RUN mkdir -p /root/.jupyter/lab/user-settings/@jupyterlab/apputils-extension && \
-    mkdir -p /root/.jupyter/lab/user-settings/@jupyterlab/notebook-extension && \
-    echo '{"theme": "JupyterLab Dark"}' > /root/.jupyter/lab/user-settings/@jupyterlab/apputils-extension/themes.jupyterlab-settings && \
-    echo '{"autoStartDefaultKernel": true, "kernelShutdown": false}' > /root/.jupyter/lab/user-settings/@jupyterlab/notebook-extension/tracker.jupyterlab-settings
+RUN chmod +x /app/notebooks/start.sh
 
 WORKDIR /app/notebooks
 
 EXPOSE 8888
 
-CMD ["sh", "-c", "sleep 5 && jupyter lab --config=/app/notebooks/jupyter_config.py"]
+CMD ["/bin/bash", "/app/notebooks/start.sh"]
