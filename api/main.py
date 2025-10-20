@@ -20,6 +20,19 @@ scheduler = AsyncIOScheduler()
 async def lifespan(app: FastAPI):
     init_db()
 
+    try:
+        from api.config import SessionLocal
+        db = SessionLocal()
+        try:
+            await sync_projects(uf="DF", db=db)
+            print("Sync inicial executado com sucesso!")
+        except Exception as e:
+            print(f"Erro no sync inicial: {str(e)}")
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Erro na configuração do sync inicial: {str(e)}")
+
     scheduler.add_job(
         scheduled_sync,
         'cron',
