@@ -6,4 +6,6 @@ __pycache__/
 *.pyd
 .Python
 
+.ipynb_checkpoints/
+*.ipynb_checkpoints
 

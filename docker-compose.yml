@@ -64,6 +64,29 @@ services:
       - obrasgov_network
     restart: unless-stopped
 
+  jupyter:
+    build:
+      context: .
+      dockerfile: notebooks/Dockerfile
+    container_name: obrasgov_jupyter
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/app/notebooks
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    networks:
+      - obrasgov_network
+    restart: unless-stopped
+
 volumes:
   postgres_data:
 
