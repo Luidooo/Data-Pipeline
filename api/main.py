@@ -74,6 +74,33 @@ async def health_check(db: Session = Depends(get_db)):
     )
 
 
+@app.get("/ready", tags=["Health"])
+async def readiness_check(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+        projeto_count = db.query(models.ProjetoInvestimento).count()
+
+        if projeto_count == 0:
+            raise HTTPException(
+                status_code=503,
+                detail="Database not populated yet. Initial sync still running."
+            )
+
+        return {
+            "status": "ready",
+            "database": "connected",
+            "projects_count": projeto_count,
+            "timestamp": datetime.utcnow()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Service not ready: {str(e)}"
+        )
+
+
 @app.post("/sync", response_model=schemas.SyncResponse, tags=["Sincronização"])
 async def sync_projects(uf: str = "DF", db: Session = Depends(get_db)):
     start_time = datetime.utcnow()
