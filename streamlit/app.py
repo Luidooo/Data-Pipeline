@@ -305,17 +305,274 @@ if 'mes_cadastro' in df.columns:
 
 st.markdown("---")
 
+st.markdown(f'<div id="arquitetura"></div>', unsafe_allow_html=True)
+st.header("Arquitetura do Sistema")
+
+st.markdown("""
+Esta seção apresenta a arquitetura completa do sistema Data Pipeline ObrasGov DF,
+incluindo todos os componentes, fluxos de dados e integrações.
+""")
+
+st.markdown("""
+Ecolha uma das abas abaixo.
+""")
+
+tab1, tab2, tab3, tab4 = st.tabs(["Visão Geral", "Pipeline ETL", "Banco de Dados", "Infraestrutura"])
+
+with tab1:
+    st.subheader("Arquitetura de Containers")
+
+    st.markdown("""
+    O sistema é composto por 4 containers Docker orquestrados via Docker Compose:
+    """)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("""
+        **Container: obrasgov_postgres**
+        - PostgreSQL 15-alpine
+        - Porta: 5455:5432
+        - Volume persistente: postgres_data
+        - Healthcheck: pg_isready
+
+        **Container: obrasgov_api**
+        - FastAPI + Uvicorn
+        - Porta: 8000:8000
+        - Healthcheck: /ready endpoint
+        - Sync inicial automático
+        """)
+
+    with col2:
+        st.markdown("""
+        **Container: obrasgov_streamlit**
+        - Streamlit Dashboard
+        - Porta: 8501:8501
+        - Depende: postgres + api (healthy)
+
+        **Container: obrasgov_jupyter**
+        - JupyterLab (tema dark)
+        - Porta: 8888:8888
+        - Depende: postgres + api (healthy)
+        """)
+
+    st.markdown("---")
+
+    st.subheader("Fluxo de Dados")
+
+    st.markdown("""
+    ```
+    API ObrasGov → FastAPI (ETL) → PostgreSQL → Análise (Streamlit/Jupyter)
+         ↓              ↓              ↓              ↓
+     Extração    Processamento    Storage      Visualização
+    ```
+    """)
+
+    st.markdown("""
+    ```
+    **Healthchecks garantem ordem de inicialização:**
+    1. Postgres sobe e passa healthcheck (pg_isready)
+    2. API inicia, executa sync e passa healthcheck (/ready)
+    3. Streamlit e Jupyter só sobem após API estar pronta
+    ```
+    """)
+
+with tab2:
+    st.subheader("Pipeline ETL")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("""
+        **EXTRACT**
+        - ObrasGovClient
+        - Paginação automática
+        - Rate limiting (1s delay)
+        - Retry automático (3x)
+        - Async generator
+        """)
+
+    with col2:
+        st.markdown("""
+        **TRANSFORM**
+        - DataProcessor
+        - Normalizador
+        - Extração de entidades
+        - Validação de dados
+        - Deduplicação
+        """)
+
+    with col3:
+        st.markdown("""
+        **LOAD**
+        - SQLAlchemy ORM
+        - Relacionamentos FK
+        - Commit por página
+        - Rollback em erro
+        - Tratamento de duplicatas
+        """)
+
+    st.markdown("---")
+
+    st.subheader("Componentes do Pipeline")
+
+    st.code("""
+# api/services/obrasgov_client.py
+class ObrasGovClient:
+    - fetch_all(uf) → async generator
+    - Rate limiting inteligente
+    - Retry com backoff exponencial
+
+# api/services/data_processor.py
+class DataProcessor:
+    - process_projeto(data) → INSERT/UPDATE
+    - Extrai e cria entidades relacionadas
+    - Gerencia transações
+    """, language="python")
+
+with tab3:
+    st.subheader("Estrutura do Banco de Dados")
+
+    st.markdown("""
+    **Tabela Principal: projetos_investimento**
+    """)
+
+    df_schema = pd.DataFrame({
+        'Campo': ['id', 'id_unico', 'uf', 'situacao', 'data_cadastro', 'executor_id', 'tomador_id', 'repassador_id'],
+        'Tipo': ['INTEGER', 'STRING', 'STRING', 'STRING', 'DATETIME', 'INTEGER', 'INTEGER', 'INTEGER'],
+        'Constraint': ['PK', 'UNIQUE', '', '', '', 'FK → executores', 'FK → tomadores', 'FK → repassadores']
+    })
+
+    st.dataframe(df_schema, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("""
+        **Tabela: executores**
+        - id (PK)
+        - nome
+        - codigo
+        - created_at
+        """)
+
+    with col2:
+        st.markdown("""
+        **Tabela: tomadores**
+        - id (PK)
+        - nome
+        - codigo
+        - created_at
+        """)
+
+    with col3:
+        st.markdown("""
+        **Tabela: repassadores**
+        - id (PK)
+        - nome
+        - codigo
+        - created_at
+        """)
+
+    st.success("""
+    **Normalização:** Banco de dados normalizado (3NF) com relacionamentos
+    entre projetos e suas entidades associadas.
+    """)
+
+with tab4:
+    st.subheader("Infraestrutura Docker")
+
+    st.markdown("""
+    **docker-compose.yml**
+    """)
+
+    st.code("""
+services:
+  postgres:
+    image: postgres:15-alpine
+    ports: ["5455:5432"]
+    healthcheck: pg_isready
+
+  api:
+    build: ./api
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck: curl /ready
+
+  streamlit:
+    build: ./streamlit
+    ports: ["8501:8501"]
+    depends_on:
+      api: {condition: service_healthy}
+
+  jupyter:
+    build: ./notebooks
+    ports: ["8888:8888"]
+    depends_on:
+      api: {condition: service_healthy}
+    """, language="yaml")
+
+    st.markdown("---")
+
+    st.subheader("Endpoints da API")
+
+    endpoints_df = pd.DataFrame({
+        'Endpoint': ['/health', '/ready', '/sync', '/projetos', '/projetos/{id}'],
+        'Método': ['GET', 'GET', 'POST', 'GET', 'GET'],
+        'Descrição': [
+            'Status da API e banco',
+            'Readiness check (banco populado)',
+            'Sincronização manual (uf=DF)',
+            'Lista projetos (paginação)',
+            'Busca projeto específico'
+        ]
+    })
+
+    st.dataframe(endpoints_df, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    st.subheader("Agendamento Automático")
+
+    st.info("""
+    **APScheduler:**
+    - Sync automático diário às 8h da manhã
+    - Executa em background
+    - Mantém dados atualizados automaticamente
+    """)
+
+st.markdown("---")
+
 st.markdown("""
 ### Tecnologias Utilizadas
 
-- **Backend**: FastAPI + PostgreSQL
-- **Análise**: Pandas, NumPy
-- **Visualização**: Plotly, Matplotlib, Seaborn
-- **Dashboard**: Streamlit
-- **Containerização**: Docker
+- **Backend**: FastAPI + PostgreSQL + SQLAlchemy + APScheduler
+- **Análise**: Pandas + NumPy
+- **Visualização**: Plotly + Matplotlib + Seaborn
+- **Dashboard**: Streamlit + JupyterLab
+- **Infraestrutura**: Docker + Docker Compose + Healthchecks
+- **Cliente HTTP**: HTTPX + Async/Await + Rate Limiting
+""")
+
+st.markdown("---")
+
+st.markdown("""
+### Portas de Acesso
+
+| Serviço | Porta | URL |
+|---------|-------|-----|
+| PostgreSQL | 5455 | `postgresql://localhost:5455/obrasgov_db` |
+| FastAPI | 8000 | `http://localhost:8000` |
+| FastAPI Docs | 8000 | `http://localhost:8000/docs` |
+| Streamlit | 8501 | `http://localhost:8501` |
+| JupyterLab | 8888 | `http://localhost:8888` |
 """)
 
 st.sidebar.markdown('[Visão Geral](#visao_geral)')
 st.sidebar.markdown('[Executores](#executores)')
 st.sidebar.markdown('[Repassadores](#repassadores)')
 st.sidebar.markdown('[Análise Temporal](#temporal)')
+st.sidebar.markdown('[Arquitetura](#arquitetura)')
