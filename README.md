@@ -4,7 +4,7 @@ Pipeline ETL completo para extração, processamento, análise e visualização 
 
 ## Visão Geral
 
-![](./utils/geral.png)
+![Arquitetura Geral do Sistema](./utils/geral.png)
 
 Sistema completo de análise de dados públicos com:
 - **Backend**: API REST com FastAPI + PostgreSQL
